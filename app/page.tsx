@@ -1,55 +1,63 @@
-"use client"
+"use client";
 
-import { useState, useCallback, useEffect, useMemo, useRef } from "react"
-import { useChat } from "ai/react"
-import { ConversationList } from "@/components/chat/conversation-list"
-import { ChatInput } from "@/components/chat/chat-input"
-import { CanvasPanel } from "@/components/canvas/canvas-panel"
-import { EnhancedMessage } from "@/components/chat/enhanced-message"
-import { StatusIndicator } from "@/components/status-indicator"
-import { SettingsPanel } from "@/components/settings/settings-panel"
-import { Button } from "@/components/ui/button"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Code2, Zap, PanelRightOpen, PanelRightClose, Terminal, Settings, Brain, Layers, Cpu } from "lucide-react"
-import { EnhancedStreamingIndicator } from "@/components/chat/enhanced-streaming-indicator"
-import type { Conversation, Message } from "@/lib/db/schema"
-
-interface StreamingState {
-  isActive: boolean
-  currentAgent: string
-  currentTask: string
-  progress: number
-  generatedFiles: string[]
-  currentCode?: string
-  currentFile?: string
-  error?: string
-}
-
-interface CanvasState {
-  isOpen: boolean
-  code: string
-  language: string
-  title: string
-  files: Record<string, { content: string; language: string }>
-}
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
+import { useChat } from "ai/react";
+import { ConversationList } from "@/components/chat/conversation-list";
+import { ChatInput } from "@/components/chat/chat-input";
+import { CanvasPanel } from "@/components/canvas/canvas-panel";
+import { EnhancedMessage } from "@/components/chat/enhanced-message";
+import { StatusIndicator } from "@/components/status-indicator";
+import { SettingsPanel } from "@/components/settings/settings-panel";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Code2,
+  Zap,
+  PanelRightOpen,
+  PanelRightClose,
+  Terminal,
+  Settings,
+  Brain,
+  Layers,
+  Cpu,
+} from "lucide-react";
+import { EnhancedStreamingIndicator } from "@/components/chat/enhanced-streaming-indicator";
+import type { Message } from "@/lib/db/schema";
+import { type StreamingState } from "@/lib/types";
+import { type CanvasState } from "@/lib/types";
+import { type Conversation } from "@/lib/types";
+import { type ToolInvocation } from "@/lib/types";
 
 export default function DevChatPage() {
-  const [selectedConversationId, setSelectedConversationId] = useState<string>()
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const [conversations, setConversations] = useState<Conversation[]>([])
-  const [streamingState, setStreamingState] = useState<StreamingState | null>(null)
-  const [isInitialLoading, setIsInitialLoading] = useState(true)
-  const [conversationLoading, setConversationLoading] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [selectedConversationId, setSelectedConversationId] =
+    useState<string>();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [streamingState, setStreamingState] = useState<StreamingState | null>(
+    null
+  );
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [conversationLoading, setConversationLoading] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [canvasState, setCanvasState] = useState<CanvasState>({
     isOpen: false,
     code: "",
     language: "jsx",
     title: "Canvas",
     files: {},
-  })
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const { messages, input, handleInputChange, handleSubmit, isLoading, stop, setMessages, append } = useChat({
+  });
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const {
+    messages,
+    input,
+    handleInputChange,
+    handleSubmit,
+    isLoading,
+    stop,
+    setMessages,
+    append,
+  } = useChat({
     api: "/api/agent",
     body: { conversationId: selectedConversationId },
     onToolCall: ({ toolCall }) => {
@@ -61,24 +69,36 @@ export default function DevChatPage() {
         generatedFiles: [],
         currentCode: toolCall.args.componentCode || "",
         currentFile: toolCall.args.fileName || "",
-      })
+      });
     },
     onToolResult: ({ toolCall, toolResult }) => {
       if (toolResult?.success) {
-        const files: Record<string, { content: string; language: string }> = {}
+        const files: Record<string, { content: string; language: string }> = {};
 
         if (toolCall.toolName === "createNextJSProject") {
           if (toolResult.mainPageCode) {
-            files["app/page.tsx"] = { content: toolResult.mainPageCode, language: "tsx" }
+            files["app/page.tsx"] = {
+              content: toolResult.mainPageCode,
+              language: "tsx",
+            };
           }
           if (toolResult.additionalFiles) {
-            Object.entries(toolResult.additionalFiles).forEach(([path, fileData]: [string, any]) => {
-              files[path] = { content: fileData.content, language: fileData.language || "tsx" }
-            })
+            Object.entries(toolResult.additionalFiles).forEach(
+              ([path, fileData]: [string, any]) => {
+                files[path] = {
+                  content: fileData.content,
+                  language: fileData.language || "tsx",
+                };
+              }
+            );
           }
         } else if (toolCall.toolName === "createReactComponent") {
-          const fileName = toolResult.fileName || `${toolResult.componentName}.tsx`
-          files[fileName] = { content: toolResult.componentCode, language: "tsx" }
+          const fileName =
+            toolResult.fileName || `${toolResult.componentName}.tsx`;
+          files[fileName] = {
+            content: toolResult.componentCode,
+            language: "tsx",
+          };
         }
 
         setStreamingState((prev) =>
@@ -89,82 +109,112 @@ export default function DevChatPage() {
                 generatedFiles: Object.keys(files),
                 currentTask: "Generation complete!",
               }
-            : null,
-        )
+            : null
+        );
 
         if (Object.keys(files).length > 0) {
           setCanvasState({
             isOpen: true,
             code: Object.values(files)[0].content,
             language: "tsx",
-            title: toolResult.projectName || toolResult.componentName || "Project",
+            title:
+              toolResult.projectName || toolResult.componentName || "Project",
             files,
-          })
+          });
         }
       }
     },
     onFinish: async (message) => {
-      setStreamingState((prev) => (prev ? { ...prev, progress: 100, isActive: false } : null))
-      setTimeout(() => setStreamingState(null), 2000)
+      try {
+        setStreamingState((prev: StreamingState | null) =>
+          prev ? { ...prev, progress: 100, isActive: false } : null
+        );
+        setTimeout(() => setStreamingState(null), 2000);
 
-      if (selectedConversationId && message.content) {
-        try {
-          await fetch(`/api/conversations/${selectedConversationId}/messages`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              role: message.role,
-              content: message.content,
-              toolInvocations: message.toolInvocations || [],
-            }),
-          })
-        } catch (error) {
-          console.error("Failed to save message:", error)
-        }
-      }
-
-      refreshConversations()
-
-      if (message.content && message.role === "assistant") {
-        const codeBlocks = message.content.match(/```(?:tsx?|jsx?|typescript|javascript)\s*\n([\s\S]*?)```/g)
-
-        if (codeBlocks && codeBlocks.length >= 2) {
-          const files: Record<string, { content: string; language: string }> = {}
-
-          codeBlocks.forEach((block, index) => {
-            const match = block.match(/```(\w+)\s*\n([\s\S]*?)```/)
-            if (match) {
-              const [, language, code] = match
-              const cleanCode = code.trim()
-
-              const componentMatch = cleanCode.match(/(?:export\s+default\s+)?(?:function\s+|const\s+)(\w+)/)
-              const componentName = componentMatch?.[1] || `Component${index + 1}`
-
-              const filename = `${componentName}.${language === "typescript" ? "tsx" : "jsx"}`
-              files[filename] = {
-                content: cleanCode,
-                language: language === "typescript" ? "tsx" : "jsx",
-              }
+        if (selectedConversationId && message.content) {
+          const response = await fetch(
+            `/api/conversations/${selectedConversationId}/messages`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                role: message.role,
+                content: message.content,
+                toolInvocations: message.toolInvocations || [],
+              }),
             }
-          })
+          );
 
-          if (Object.keys(files).length >= 2) {
-            setTimeout(() => {
-              setCanvasState({
-                isOpen: true,
-                code: Object.values(files)[0].content,
-                language: "tsx",
-                title: "React Project",
-                files,
-              })
-            }, 1000)
+          if (!response.ok) {
+            throw new Error("Failed to save message");
           }
         }
-      }
 
-      scrollToBottom()
+        await refreshConversations();
+
+        if (message.content && message.role === "assistant") {
+          const codeBlocks = message.content.match(
+            /```(?:tsx?|jsx?|typescript|javascript)\s*\n([\s\S]*?)```/g
+          );
+
+          if (codeBlocks && codeBlocks.length >= 2) {
+            const files: Record<string, { content: string; language: string }> =
+              {};
+
+            codeBlocks.forEach((block, index) => {
+              const match = block.match(/```(\w+)\s*\n([\s\S]*?)```/);
+              if (match) {
+                const [, language, code] = match;
+                const cleanCode = code.trim();
+
+                const componentMatch = cleanCode.match(
+                  /(?:export\s+default\s+)?(?:function\s+|const\s+)(\w+)/
+                );
+                const componentName =
+                  componentMatch?.[1] || `Component${index + 1}`;
+
+                const filename = `${componentName}.${
+                  language === "typescript" ? "tsx" : "jsx"
+                }`;
+                files[filename] = {
+                  content: cleanCode,
+                  language: language === "typescript" ? "tsx" : "jsx",
+                };
+              }
+            });
+
+            if (Object.keys(files).length >= 2) {
+              requestAnimationFrame(() => {
+                setCanvasState({
+                  isOpen: true,
+                  code: Object.values(files)[0].content,
+                  language: "tsx",
+                  title: "React Project",
+                  files,
+                });
+              });
+            }
+          }
+        }
+
+        requestAnimationFrame(() => scrollToBottom());
+      } catch (error) {
+        console.error("Error in onFinish:", error);
+        setStreamingState({
+          isActive: false,
+          currentAgent: "System",
+          currentTask: "Error occurred",
+          progress: 0,
+          generatedFiles: [],
+          error:
+            error instanceof Error
+              ? error.message
+              : "An unknown error occurred",
+        });
+      }
     },
-    onError: (error) => {
+    onError: (error: Error) => {
+      console.error("Chat error:", error);
       setStreamingState({
         isActive: false,
         currentAgent: "System",
@@ -172,186 +222,124 @@ export default function DevChatPage() {
         progress: 0,
         generatedFiles: [],
         error: error.message,
-      })
+      });
     },
-  })
+  });
 
   const refreshConversations = useCallback(async () => {
     try {
-      const response = await fetch("/api/conversations")
+      const response = await fetch("/api/conversations");
       if (response.ok) {
-        const data = await response.json()
-        setConversations(data)
+        const data = await response.json();
+        setConversations(data);
       } else {
-        setConversations([])
+        setConversations([]);
       }
     } catch (error) {
-      setConversations([])
+      console.error("Failed to refresh conversations:", error);
+      setConversations([]);
     } finally {
-      setIsInitialLoading(false)
+      setIsInitialLoading(false);
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
-    refreshConversations()
-  }, [refreshConversations])
+    refreshConversations();
+  }, [refreshConversations]);
 
   const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [])
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, []);
 
   useEffect(() => {
-    scrollToBottom()
-  }, [messages, scrollToBottom])
+    scrollToBottom();
+  }, [messages, scrollToBottom]);
 
   const handleSelectConversation = useCallback(
     async (conversationId: string) => {
-      setSelectedConversationId(conversationId)
-      setConversationLoading(true)
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
+
+      setSelectedConversationId(conversationId);
+      setConversationLoading(true);
 
       try {
-        const response = await fetch(`/api/conversations/${conversationId}`)
-        const data = await response.json()
+        const response = await fetch(`/api/conversations/${conversationId}`, {
+          signal: abortControllerRef.current.signal,
+        });
+        const data = await response.json();
 
         if (response.ok) {
           if (data.messages && Array.isArray(data.messages)) {
             const chatMessages = data.messages.map((msg: Message) => ({
               id: msg.id,
-              role: msg.role as "user" | "assistant" | "system",
+              role: msg.role,
               content: msg.content || "",
               createdAt: msg.createdAt,
               toolInvocations: msg.toolInvocations || undefined,
-              imageUrl: msg.imageUrl,
-            }))
-            setMessages(chatMessages)
-
-            let extractedCanvasState: CanvasState | null = null
-            for (const message of chatMessages) {
-              if (message.toolInvocations) {
-                const files: Record<string, { content: string; language: string }> = {}
-                let mainCode = ""
-                let projectName = "Project"
-
-                for (const toolInvocation of message.toolInvocations) {
-                  if (toolInvocation.state === "result" && toolInvocation.result) {
-                    const result = toolInvocation.result
-
-                    if (toolInvocation.toolName === "createNextJSProject" && result.success) {
-                      if (result.mainPageCode) {
-                        files["app/page.tsx"] = { content: result.mainPageCode, language: "tsx" }
-                        mainCode = result.mainPageCode
-                      }
-                      if (result.projectName) projectName = result.projectName
-                      if (result.additionalFiles) {
-                        Object.entries(result.additionalFiles).forEach(([path, fileData]: [string, any]) => {
-                          files[path] = { content: fileData.content, language: fileData.language || "tsx" }
-                        })
-                      }
-                    } else if (toolInvocation.toolName === "createReactComponent" && result.success) {
-                      const fileName = result.fileName || `${result.componentName}.tsx`
-                      files[fileName] = { content: result.componentCode, language: "tsx" }
-                      if (!mainCode) mainCode = result.componentCode
-                      if (result.componentName) projectName = result.componentName
-                    }
-                  }
-                }
-
-                if (Object.keys(files).length > 0) {
-                  extractedCanvasState = {
-                    isOpen: false,
-                    code: mainCode,
-                    language: "tsx",
-                    title: projectName,
-                    files,
-                  }
-                }
-              }
-            }
-
-            if (extractedCanvasState) {
-              setCanvasState(extractedCanvasState)
-            } else {
-              setCanvasState({
-                isOpen: false,
-                code: "",
-                language: "jsx",
-                title: "Canvas",
-                files: {},
-              })
-            }
+            }));
+            setMessages(chatMessages);
           } else {
-            setMessages([])
-            setCanvasState({
-              isOpen: false,
-              code: "",
-              language: "jsx",
-              title: "Canvas",
-              files: {},
-            })
+            setMessages([]);
           }
         } else {
-          setMessages([])
-          setCanvasState({
-            isOpen: false,
-            code: "",
-            language: "jsx",
-            title: "Canvas",
-            files: {},
-          })
+          setMessages([]);
         }
       } catch (error) {
-        setMessages([])
-        setCanvasState({
-          isOpen: false,
-          code: "",
-          language: "jsx",
-          title: "Canvas",
-          files: {},
-        })
+        if (error instanceof Error && error.name === "AbortError") {
+          console.log("Conversation load aborted");
+          return;
+        }
+        console.error("Failed to load conversation:", error);
+        setMessages([]);
       } finally {
-        setConversationLoading(false)
-        setTimeout(scrollToBottom, 100)
+        setConversationLoading(false);
+        requestAnimationFrame(() => scrollToBottom());
       }
     },
-    [setMessages, scrollToBottom],
-  )
+    [setMessages, scrollToBottom]
+  );
 
   const handleNewConversation = useCallback(() => {
-    setSelectedConversationId(undefined)
-    setMessages([])
-    setStreamingState(null)
+    setSelectedConversationId(undefined);
+    setMessages([]);
+    setStreamingState(null);
     setCanvasState({
       isOpen: false,
       code: "",
       language: "jsx",
       title: "Canvas",
       files: {},
-    })
-  }, [setMessages])
+    });
+  }, [setMessages]);
 
   const handleSendMessage = useCallback(
     async (content: string, file?: File) => {
-      if (!content.trim() && !file) return
+      if (!content.trim() && !file) return;
 
-      let conversationId = selectedConversationId
-      let imageUrl = null
+      let conversationId = selectedConversationId;
+      let imageUrl = null;
 
       if (file && file.type.startsWith("image/")) {
         try {
-          const formData = new FormData()
-          formData.append("file", file)
+          const formData = new FormData();
+          formData.append("file", file);
 
           const uploadResponse = await fetch("/api/upload", {
             method: "POST",
             body: formData,
-          })
+          });
 
           if (uploadResponse.ok) {
-            const uploadResult = await uploadResponse.json()
-            imageUrl = uploadResult.url
+            const uploadResult = await uploadResponse.json();
+            imageUrl = uploadResult.url;
           }
         } catch (error) {
-          console.error("Failed to upload image:", error)
+          console.error("Failed to upload image:", error);
         }
       }
 
@@ -363,16 +351,16 @@ export default function DevChatPage() {
             body: JSON.stringify({
               title: content.slice(0, 50) || "New Conversation",
             }),
-          })
+          });
 
           if (response.ok) {
-            const conversation = await response.json()
-            conversationId = conversation.id
-            setSelectedConversationId(conversationId)
-            refreshConversations()
+            const conversation = await response.json();
+            conversationId = conversation.id;
+            setSelectedConversationId(conversationId);
+            refreshConversations();
           }
         } catch (error) {
-          console.error("Failed to create conversation:", error)
+          console.error("Failed to create conversation:", error);
         }
       }
 
@@ -387,9 +375,9 @@ export default function DevChatPage() {
               toolInvocations: [],
               imageUrl: imageUrl,
             }),
-          })
+          });
         } catch (error) {
-          console.error("Failed to save user message:", error)
+          console.error("Failed to save user message:", error);
         }
       }
 
@@ -397,32 +385,32 @@ export default function DevChatPage() {
         role: "user",
         content,
         imageUrl,
-      })
+      });
 
-      scrollToBottom()
+      scrollToBottom();
     },
-    [selectedConversationId, append, refreshConversations, scrollToBottom],
-  )
+    [selectedConversationId, append, refreshConversations, scrollToBottom]
+  );
 
   const handleDeleteConversation = useCallback(
     async (conversationId: string) => {
       try {
         const response = await fetch(`/api/conversations/${conversationId}`, {
           method: "DELETE",
-        })
+        });
 
         if (response.ok) {
           if (selectedConversationId === conversationId) {
-            handleNewConversation()
+            handleNewConversation();
           }
-          refreshConversations()
+          refreshConversations();
         }
       } catch (error) {
-        console.error("Failed to delete conversation:", error)
+        console.error("Failed to delete conversation:", error);
       }
     },
-    [selectedConversationId, handleNewConversation, refreshConversations],
-  )
+    [selectedConversationId, handleNewConversation, refreshConversations]
+  );
 
   const handleRunCode = useCallback((code: string, language: string) => {
     setCanvasState({
@@ -431,18 +419,21 @@ export default function DevChatPage() {
       language,
       title: `${language.toUpperCase()} Execution`,
       files: { [`main.${language}`]: { content: code, language } },
-    })
-  }, [])
+    });
+  }, []);
 
-  const handleOpenCanvas = useCallback((code: string, language: string, title?: string) => {
-    setCanvasState({
-      isOpen: true,
-      code,
-      language,
-      title: title || "Canvas",
-      files: { [`main.${language}`]: { content: code, language } },
-    })
-  }, [])
+  const handleOpenCanvas = useCallback(
+    (code: string, language: string, title?: string) => {
+      setCanvasState({
+        isOpen: true,
+        code,
+        language,
+        title: title || "Canvas",
+        files: { [`main.${language}`]: { content: code, language } },
+      });
+    },
+    []
+  );
 
   const EmptyState = useMemo(
     () => (
@@ -460,10 +451,13 @@ export default function DevChatPage() {
           </div>
 
           <h3 className="text-4xl font-bold mb-4 text-foreground">
-            <span className="dev-gradient bg-clip-text text-transparent">DevChat</span>
+            <span className="dev-gradient bg-clip-text text-transparent">
+              DevChat
+            </span>
           </h3>
           <p className="text-muted-foreground mb-8 leading-relaxed text-lg">
-            AI-powered development companion for building, debugging, and creating with intelligent assistance.
+            AI-powered development companion for building, debugging, and
+            creating with intelligent assistance.
           </p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
@@ -498,16 +492,20 @@ export default function DevChatPage() {
                 className={`p-6 rounded-xl bg-gradient-to-br ${item.color} border border-border/30 hover:border-border/60 transition-all duration-300 glass-effect`}
               >
                 <div className="text-primary mb-4">{item.icon}</div>
-                <p className="font-semibold text-foreground mb-2">{item.title}</p>
-                <p className="text-muted-foreground text-sm leading-relaxed">{item.desc}</p>
+                <p className="font-semibold text-foreground mb-2">
+                  {item.title}
+                </p>
+                <p className="text-muted-foreground text-sm leading-relaxed">
+                  {item.desc}
+                </p>
               </div>
             ))}
           </div>
         </div>
       </div>
     ),
-    [],
-  )
+    []
+  );
 
   if (isInitialLoading) {
     return (
@@ -523,10 +521,12 @@ export default function DevChatPage() {
             <div></div>
             <div></div>
           </div>
-          <div className="text-sm text-muted-foreground">Initializing DevChat...</div>
+          <div className="text-sm text-muted-foreground">
+            Initializing DevChat...
+          </div>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -573,7 +573,9 @@ export default function DevChatPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setCanvasState((prev) => ({ ...prev, isOpen: !prev.isOpen }))}
+                onClick={() =>
+                  setCanvasState((prev) => ({ ...prev, isOpen: !prev.isOpen }))
+                }
                 className="flex items-center gap-2 hover:bg-primary/10 hover:text-primary transition-colors"
               >
                 {canvasState.isOpen ? (
@@ -604,7 +606,9 @@ export default function DevChatPage() {
                         <div></div>
                         <div></div>
                       </div>
-                      <div className="text-sm text-muted-foreground">Loading conversation...</div>
+                      <div className="text-sm text-muted-foreground">
+                        Loading conversation...
+                      </div>
                     </div>
                   </div>
                 ) : messages.length === 0 ? (
@@ -650,7 +654,9 @@ export default function DevChatPage() {
                               <div></div>
                               <div></div>
                             </div>
-                            <span className="text-sm text-muted-foreground">AI is thinking...</span>
+                            <span className="text-sm text-muted-foreground">
+                              AI is thinking...
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -663,7 +669,11 @@ export default function DevChatPage() {
           </ScrollArea>
         </div>
 
-        <ChatInput onSendMessage={handleSendMessage} onStop={stop} isLoading={isLoading} />
+        <ChatInput
+          onSendMessage={handleSendMessage}
+          onStop={stop}
+          isLoading={isLoading}
+        />
       </div>
 
       <CanvasPanel
@@ -675,7 +685,10 @@ export default function DevChatPage() {
         files={canvasState.files}
       />
 
-      <SettingsPanel isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsPanel
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
     </div>
-  )
+  );
 }
