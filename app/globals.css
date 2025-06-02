@@ -1,0 +1,141 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
+
+@layer base {
+  :root {
+    --background: 0 0% 9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 11%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 11%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 240 5% 96%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 13%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 65%;
+    --accent: 0 0% 16%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 18%;
+    --input: 0 0% 18%;
+    --ring: 0 0% 83%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer components {
+  .loading-dots {
+    @apply flex space-x-1;
+  }
+
+  .loading-dots div {
+    @apply w-1.5 h-1.5 bg-foreground/70 rounded-full;
+    animation: typing 1.4s ease-in-out infinite;
+  }
+
+  .loading-dots div:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .loading-dots div:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+
+  .message-bubble {
+    @apply animate-fade-in;
+  }
+
+  .status-online {
+    @apply bg-emerald-500;
+    box-shadow: 0 0 0 2px hsl(var(--background));
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted));
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
+}
+
+/* Selection */
+::selection {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Focus styles */
+.focus-ring {
+  @apply focus:outline-none focus:ring-1 focus:ring-ring focus:ring-offset-1 focus:ring-offset-background;
+}
+
+/* Syntax highlighting improvements */
+.token.comment {
+  color: #6a737d;
+}
+.token.keyword {
+  color: #ff7b72;
+}
+.token.string {
+  color: #a5d6ff;
+}
+.token.function {
+  color: #d2a8ff;
+}
+.token.number {
+  color: #79c0ff;
+}
+.token.operator {
+  color: #ff7b72;
+}
+
+/* Improved transitions */
+.smooth-transition {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Input styles */
+.chat-input {
+  @apply bg-secondary border-0 focus:ring-0 placeholder:text-muted-foreground resize-none;
+}
+
+/* Button styles */
+.icon-button {
+  @apply h-8 w-8 rounded-full flex items-center justify-center bg-secondary/80 hover:bg-secondary text-muted-foreground hover:text-foreground transition-colors;
+}
+
+/* Sidebar styles */
+.sidebar {
+  @apply bg-[#0e0e0e] border-r border-border;
+}
+
+/* Chat container */
+.chat-container {
+  @apply bg-background;
+}
